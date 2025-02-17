@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List
-from app.entities.processed_agent_data import ProcessedAgentData
+from hub.app.entities.processed_agent_data import ProcessedAgentData
 
 
 class StoreGateway(ABC):

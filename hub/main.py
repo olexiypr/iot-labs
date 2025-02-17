@@ -81,7 +81,7 @@ def on_message(client, userdata, msg):
                     redis_client.lpop("processed_agent_data")
                 )
                 processed_agent_data_batch.append(processed_agent_data)
-        store_adapter.save_data(processed_agent_data_batch=processed_agent_data_batch)
+            store_adapter.save_data(processed_agent_data_batch=processed_agent_data_batch)
         return {"status": "ok"}
     except Exception as e:
         logging.info(f"Error processing MQTT message: {e}")
@@ -93,4 +93,8 @@ client.on_message = on_message
 client.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT)
 
 # Start
-client.loop_start()
+
+if __name__ == "__main__":
+    import uvicorn
+    client.loop_start()
+    uvicorn.run(app, host="127.0.0.1", port=8001)

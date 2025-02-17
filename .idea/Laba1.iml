@@ -5,6 +5,10 @@
     <orderEntry type="jdk" jdkName="Python 3.9 (laba1)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
   </component>
+  <component name="PackageRequirementsSettings">
+    <option name="requirementsPath" value="C:\Users\alosh\IoTLabs\iot-labs\store\requirements.txt" />
+    <option name="removeUnused" value="true" />
+  </component>
   <component name="PyDocumentationSettings">
     <option name="format" value="PLAIN" />
     <option name="myDocStringFormat" value="Plain" />
