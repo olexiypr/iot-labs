@@ -14,7 +14,7 @@ def connect_mqtt(broker, port):
         if rc == 0:
             print(f"Connected to MQTT Broker ({broker}:{port})!")
         else:
-            print("Failed to connect {broker}:{port}, return code %d\n", rc)
+            print(f"Failed to connect {broker}:{port}, return code %d\n", rc)
             exit(rc)  # Stop execution
 
     client = mqtt_client.Client()

@@ -126,9 +126,24 @@ async def send_data_to_subscribers(user_id: int, data):
 
 @app.post("/processed_agent_data/")
 async def create_processed_agent_data(data: List[ProcessedAgentData]):
-    # Insert data to database
-    # Send data to subscribers
-    pass
+    query_values = []
+    for item in data:
+        value = {
+            "road_state": item.road_state,
+            "x": item.agent_data.accelerometer.x,
+            "y": item.agent_data.accelerometer.y,
+            "z": item.agent_data.accelerometer.z,
+            "latitude": item.agent_data.gps.latitude,
+            "longitude": item.agent_data.gps.longitude,
+            "timestamp": item.agent_data.timestamp,
+            "user_id": item.agent_data.user_id,
+        }
+        query_values.append(value)
+    query = processed_agent_data.insert().values(query_values)
+    with engine.begin() as conn:
+        conn.execute(query)
+    for item in data:
+        await send_data_to_subscribers(item.agent_data.user_id, item.model_dump())
 
 
 @app.get(
@@ -136,14 +151,22 @@ async def create_processed_agent_data(data: List[ProcessedAgentData]):
     response_model=ProcessedAgentDataInDB,
 )
 def read_processed_agent_data(processed_agent_data_id: int):
-    # Get data by id
-    pass
+    query = select(processed_agent_data).where(processed_agent_data.c.id == processed_agent_data_id)
+    with engine.connect() as conn:
+        result = conn.execute(query)
+        data = result.fetchone()
+        if data is None:
+            raise HTTPException(status_code=404, detail="Data not found")
+    return data
 
 
 @app.get("/processed_agent_data/", response_model=list[ProcessedAgentDataInDB])
 def list_processed_agent_data():
-    # Get list of data
-    pass
+    query = select(processed_agent_data)
+    with engine.connect() as conn:
+        result = conn.execute(query)
+        data_list = result.fetchall()
+    return data_list
 
 
 @app.put(
@@ -151,8 +174,22 @@ def list_processed_agent_data():
     response_model=ProcessedAgentDataInDB,
 )
 def update_processed_agent_data(processed_agent_data_id: int, data: ProcessedAgentData):
-    # Update data
-    pass
+    query = (processed_agent_data.update().where(
+        processed_agent_data.c.id == processed_agent_data_id)
+    .values(
+        road_state=data.road_state,
+        x=data.agent_data.accelerometer.x,
+        y=data.agent_data.accelerometer.y,
+        z=data.agent_data.accelerometer.z,
+        latitude=data.agent_data.gps.latitude,
+        longitude=data.agent_data.gps.longitude,
+        timestamp=data.agent_data.timestamp,
+        user_id=data.agent_data.user_id))
+    with engine.begin() as conn:
+        result = conn.execute(query)
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Data not found")
+    return read_processed_agent_data(processed_agent_data_id)
 
 
 @app.delete(
@@ -160,11 +197,15 @@ def update_processed_agent_data(processed_agent_data_id: int, data: ProcessedAge
     response_model=ProcessedAgentDataInDB,
 )
 def delete_processed_agent_data(processed_agent_data_id: int):
-    # Delete by id
-    pass
+    processed_agent_data_to_be_removed = read_processed_agent_data(processed_agent_data_id)
+    query = processed_agent_data.delete().where(processed_agent_data.c.id == processed_agent_data_id)
+    with engine.begin() as conn:
+        result = conn.execute(query)
+        if result.rowcount == 0:
+            raise HTTPException(status_code=404, detail="Data not found")
+    return processed_agent_data_to_be_removed
 
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="127.0.0.1", port=8000)
