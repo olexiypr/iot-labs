@@ -1,9 +1,10 @@
 import logging
 import paho.mqtt.client as mqtt
-from app.interfaces.agent_gateway import AgentGateway
-from app.entities.agent_data import AgentData, GpsData
-from app.usecases.data_processing import process_agent_data
-from app.interfaces.hub_gateway import HubGateway
+
+from edge.app.entities.agent_data import AgentData
+from edge.app.interfaces.agent_gateway import AgentGateway
+from edge.app.interfaces.hub_gateway import HubGateway
+from edge.app.usecases.data_processing import process_agent_data
 
 
 class AgentMQTTAdapter(AgentGateway):

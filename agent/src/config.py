@@ -16,8 +16,8 @@ USER_ID = 1
 
 MQTT_BROKER_HOST = 'localhost'
 MQTT_BROKER_PORT = 1883
-MQTT_TOPIC = "agent"
+MQTT_TOPIC = "agent_data_topic"
 
 
 # Delay for sending data to mqtt in seconds
-DELAY = try_parse(float, os.environ.get("DELAY")) or 1
+DELAY = try_parse(float, os.environ.get("DELAY")) or 5

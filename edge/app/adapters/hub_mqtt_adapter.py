@@ -3,8 +3,8 @@ import logging
 import requests as requests
 from paho.mqtt import client as mqtt_client
 
-from app.entities.processed_agent_data import ProcessedAgentData
-from app.interfaces.hub_gateway import HubGateway
+from edge.app.entities.processed_agent_data import ProcessedAgentData
+from edge.app.interfaces.hub_gateway import HubGateway
 
 
 class HubMqttAdapter(HubGateway):

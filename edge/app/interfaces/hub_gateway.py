@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
-from app.entities.processed_agent_data import ProcessedAgentData
+
+from edge.app.entities.processed_agent_data import ProcessedAgentData
 
 
 class HubGateway(ABC):

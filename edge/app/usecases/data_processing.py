@@ -1,5 +1,5 @@
-from app.entities.agent_data import AgentData
-from app.entities.processed_agent_data import ProcessedAgentData
+from edge.app.entities.agent_data import AgentData
+from edge.app.entities.processed_agent_data import ProcessedAgentData
 
 
 def process_agent_data(
@@ -12,4 +12,15 @@ def process_agent_data(
     Returns:
         processed_data_batch (ProcessedAgentData): Processed data containing the classified state of the road surface and agent data.
     """
-    # Implement it
+    if 10000 < agent_data.accelerometer.z < 20000:
+        return ProcessedAgentData(
+            road_state='OK',
+            agent_data=agent_data
+        )
+    else:
+        return ProcessedAgentData(
+            road_state='BAD',
+            agent_data=agent_data
+        )
+
+
