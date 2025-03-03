@@ -12,14 +12,19 @@ def process_agent_data(
     Returns:
         processed_data_batch (ProcessedAgentData): Processed data containing the classified state of the road surface and agent data.
     """
-    if 10000 < agent_data.accelerometer.z < 20000:
+    if 10000 < agent_data.accelerometer.z < 15000:
         return ProcessedAgentData(
             road_state='OK',
             agent_data=agent_data
         )
+    elif agent_data.accelerometer.z > 15000:
+        return ProcessedAgentData(
+            road_state='BUMP',
+            agent_data=agent_data
+        )
     else:
         return ProcessedAgentData(
-            road_state='BAD',
+            road_state='POTHOLE',
             agent_data=agent_data
         )
 

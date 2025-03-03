@@ -1,4 +1,7 @@
+import ast
+import json
 import logging
+import time
 from typing import List
 import requests
 
@@ -15,15 +18,18 @@ class StoreApiAdapter(StoreGateway):
             data = []
             for item in processed_agent_data_batch:
                 timestamp_isoformat = item.agent_data.timestamp.isoformat()
+                item.agent_data.timestamp = timestamp_isoformat
                 data_item = item.model_dump()
-                data_item['agent_data']['timestamp'] = timestamp_isoformat
-                data.append(data_item)
-            response = requests.post(f"{self.api_base_url}/processed_agent_data/", json=data)
-            print(response)
-            if response.status_code == 200 or response.ok :
-                return True
-            else:
-                return False
+                js = json.dumps(data_item)
+                ev = ast.literal_eval(js)
+                dmp = json.dumps(ev)
+                data.append(dmp)
+                response = requests.post("http://127.0.0.1:8000/processed_agent_data/", json=[ev])
+                print(response)
+                if response.status_code == 200 or response.ok :
+                    return True
+                else:
+                    return False
         except Exception as e:
             logging.info(f"Error occured {e}")
             return False

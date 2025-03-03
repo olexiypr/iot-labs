@@ -22,9 +22,20 @@ from config import (
     POSTGRES_USER,
     POSTGRES_PASSWORD,
 )
+from fastapi.middleware.cors import CORSMiddleware
+from paho.mqtt import client as mqtt_client
 
 # FastAPI app setup
 app = FastAPI()
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Change this to a specific domain in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 # SQLAlchemy setup
 DATABASE_URL = f"postgresql+psycopg2://{POSTGRES_USER}:{POSTGRES_PASSWORD}@{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}"
 engine = create_engine(DATABASE_URL)
@@ -50,7 +61,6 @@ SessionLocal = sessionmaker(bind=engine)
 class ProcessedAgentDataInDB(BaseModel):
     id: int
     road_state: str
-    user_id: int
     x: float
     y: float
     z: float
@@ -72,7 +82,6 @@ class GpsData(BaseModel):
 
 
 class AgentData(BaseModel):
-    user_id: int
     accelerometer: AccelerometerData
     gps: GpsData
     timestamp: datetime
@@ -114,10 +123,30 @@ async def websocket_endpoint(websocket: WebSocket, user_id: int):
 
 
 # Function to send data to subscribed users
+def connect_mqtt(broker, port):
+    """Create MQTT client"""
+    print(f"CONNECT TO {broker}:{port}")
+
+    def on_connect(client, userdata, flags, rc):
+        if rc == 0:
+            print(f"Connected to MQTT Broker ({broker}:{port})!")
+        else:
+            print(f"Failed to connect {broker}:{port}, return code %d\n", rc)
+            exit(rc)  # Stop execution
+
+    client = mqtt_client.Client()
+    client.on_connect = on_connect
+    client.connect(broker, port)
+    client.loop_start()
+    return client
+
+mqClient = connect_mqtt("localhost", 1883)
+
 async def send_data_to_subscribers(user_id: int, data):
-    if user_id in subscriptions:
-        for websocket in subscriptions[user_id]:
-            await websocket.send_json(json.dumps(data))
+    mqClient.publish("map_view_topic", json.dumps(data))
+
+
+
 
 
 # FastAPI CRUDL endpoints
@@ -135,14 +164,14 @@ async def create_processed_agent_data(data: List[ProcessedAgentData]):
             "latitude": item.agent_data.gps.latitude,
             "longitude": item.agent_data.gps.longitude,
             "timestamp": item.agent_data.timestamp,
-            "user_id": item.agent_data.user_id,
+            "user_id": 1,
         }
         query_values.append(value)
     query = processed_agent_data.insert().values(query_values)
     with engine.begin() as conn:
         conn.execute(query)
     for item in data:
-        await send_data_to_subscribers(item.agent_data.user_id, item.model_dump())
+        await send_data_to_subscribers(1, [{**d, "timestamp": d["timestamp"].isoformat()} for d in query_values])
 
 
 @app.get(
@@ -183,7 +212,7 @@ def update_processed_agent_data(processed_agent_data_id: int, data: ProcessedAge
         latitude=data.agent_data.gps.latitude,
         longitude=data.agent_data.gps.longitude,
         timestamp=data.agent_data.timestamp,
-        user_id=data.agent_data.user_id))
+        user_id=1))
     with engine.begin() as conn:
         result = conn.execute(query)
         if result.rowcount == 0:

@@ -1,10 +1,10 @@
 import asyncio
 import json
-import ssl
 from datetime import datetime
 import websockets
 from kivy import Logger
 from pydantic import BaseModel, field_validator
+import paho.mqtt.client as mqtt
 
 from config import STORE_HOST, STORE_PORT
 
@@ -33,13 +33,17 @@ class ProcessedAgentData(BaseModel):
             )
 
 
-class Datasource:
+class DatasourceMq:
     def __init__(self, user_id: int):
         self.index = 0
         self.user_id = user_id
         self.connection_status = None
         self._new_points = []
-        asyncio.ensure_future(self.connect_to_server())
+        self.client = mqtt.Client()
+        self.client.on_connect = self.on_connect
+        self.client.on_message = self.on_message
+        self.client.connect("localhost", 1883)
+        self.client.loop_start()
 
     def get_new_points(self):
         Logger.debug(self._new_points)
@@ -47,28 +51,22 @@ class Datasource:
         self._new_points = []
         return points
 
-    def connect_to_server(self):
-        uri = f"ws://{STORE_HOST}:{STORE_PORT}/wsss/{self.user_id}"
-        while True:
-            Logger.debug("CONNECT TO SERVER")
-            with websockets.connect(uri) as websocket:
-                self.connection_status = "Connected"
-                print('Connected')
-                try:
-                    while True:
-                        data = websocket.recv()
-                        parsed_data = json.loads(data)
-                        print(parsed_data)
-                        self.handle_received_data(parsed_data)
-                except websockets.ConnectionClosedOK:
-                    self.connection_status = "Disconnected"
-                    Logger.debug("SERVER DISCONNECT")
 
+    def on_connect(self, client, userdata, flags, rc):
+        if rc == 0:
+            Logger.info("Connected to MQTT broker")
+            client.subscribe("map_view_topic")
+        else:
+            Logger.info(f"Failed to connect to MQTT broker with code: {rc}")
 
-
-
-
-
+    def on_message(self, client, userdata, msg):
+        try:
+            payload: str = msg.payload.decode("utf-8")
+            # Create ProcessedAgentData instance with the received data
+            parsed_data = json.loads(payload)
+            self.handle_received_data(parsed_data)
+        except Exception as e:
+            Logger.error(e)
 
     def handle_received_data(self, data):
         # Update your UI or perform actions with received data here
@@ -76,7 +74,7 @@ class Datasource:
         processed_agent_data_list = sorted(
             [
                 ProcessedAgentData(**processed_data_json)
-                for processed_data_json in json.loads(data)
+                for processed_data_json in data
             ],
             key=lambda v: v.timestamp,
         )

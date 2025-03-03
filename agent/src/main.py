@@ -1,5 +1,4 @@
 from paho.mqtt import client as mqtt_client
-import json
 import time
 from schema.aggregated_data_schema import AggregatedDataSchema
 from file_datasource import FileDatasource
