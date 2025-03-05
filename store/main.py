@@ -90,7 +90,7 @@ class AgentData(BaseModel):
                 "Invalid timestamp format. Expected ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)."
             )
 
-
+# represents the extended data from an agent after it has been preprocessed
 class ProcessedAgentData(BaseModel):
     road_state: str
     agent_data: AgentData
@@ -100,7 +100,7 @@ class ProcessedAgentData(BaseModel):
 subscriptions: Dict[int, Set[WebSocket]] = {}
 
 
-# FastAPI WebSocket endpoint
+# FastAPI WebSocket endpoint, which adds new subscribers to the list of subscriptions
 @app.websocket("/ws/{user_id}")
 async def websocket_endpoint(websocket: WebSocket, user_id: int):
     await websocket.accept()
@@ -143,7 +143,7 @@ async def create_processed_agent_data(data: List[ProcessedAgentData]):
     with engine.begin() as conn:
         conn.execute(query)
     for item in data:
-        await send_data_to_subscribers(item.agent_data.user_id, item.model_dump())
+        await send_data_to_subscribers(item.agent_data.user_id, item.model_dump()) # The only call to web socket there is
 
 
 @app.get(
