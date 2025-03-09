@@ -7,7 +7,7 @@ import config
 
 
 def connect_mqtt(broker, port):
-    """Create MQTT client"""
+    # Create and connect an MQTT client to the specified broker and port
     print(f"CONNECT TO {broker}:{port}")
 
     def on_connect(client, userdata, flags, rc):
@@ -41,11 +41,11 @@ def publish(client, topic, datasource, delay):
 
 
 def run():
-    # Prepare mqtt client
+    # Main function to initialize MQTT client and data source, then start publishing.
     client = connect_mqtt(config.MQTT_BROKER_HOST, config.MQTT_BROKER_PORT)
-    # Prepare datasource
+    # Initialize the data source with input file paths
     datasource = FileDatasource("data/accelerometer.csv", "data/gps.csv")
-    # Infinity publish data
+    # Start publishing data to the configured MQTT topic indefinitely
     publish(client, config.MQTT_TOPIC, datasource, config.DELAY)
 
 
