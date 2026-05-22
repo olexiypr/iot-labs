@@ -1,4 +1,6 @@
 import json
+import logging
+import os
 from typing import Set, Dict, List, Any
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Body
 from sqlalchemy import (
@@ -46,10 +48,39 @@ processed_agent_data = Table(
     metadata,
     Column("id", Integer, primary_key=True, index=True),
     Column("road_state", String),
+    Column("air_quality", String),
     Column("user_id", Integer),
     Column("x", Float),
     Column("y", Float),
     Column("z", Float),
+    Column("latitude", Float),
+    Column("longitude", Float),
+    Column("timestamp", DateTime),
+)
+
+raw_agent_data = Table(
+    "raw_agent_data",
+    metadata,
+    Column("id", Integer, primary_key=True, index=True),
+    Column("user_id", Integer),
+    Column("x", Float),
+    Column("y", Float),
+    Column("z", Float),
+    Column("latitude", Float),
+    Column("longitude", Float),
+    Column("co2_level", Integer),
+    Column("temperature", Float),
+    Column("pm2_5", Integer),
+    Column("pm10", Integer),
+    Column("timestamp", DateTime),
+)
+
+traffic_light_data = Table(
+    "traffic_light_data",
+    metadata,
+    Column("id", Integer, primary_key=True, index=True),
+    Column("traffic_light_id", Integer),
+    Column("cars_waiting", Integer),
     Column("latitude", Float),
     Column("longitude", Float),
     Column("timestamp", DateTime),
@@ -61,9 +92,19 @@ SessionLocal = sessionmaker(bind=engine)
 class ProcessedAgentDataInDB(BaseModel):
     id: int
     road_state: str
+    air_quality: str
     x: float
     y: float
     z: float
+    latitude: float
+    longitude: float
+    timestamp: datetime
+
+
+class TrafficLightDataInDB(BaseModel):
+    id: int
+    traffic_light_id: int
+    cars_waiting: int
     latitude: float
     longitude: float
     timestamp: datetime
@@ -81,10 +122,38 @@ class GpsData(BaseModel):
     longitude: float
 
 
+class AqData(BaseModel):
+    co2_level: int
+    temperature: float
+    pm2_5: int
+    pm10: int
+
+
 class AgentData(BaseModel):
     accelerometer: AccelerometerData
     gps: GpsData
+    aq: AqData
     timestamp: datetime
+
+    @classmethod
+    @field_validator("timestamp", mode="before")
+    def check_timestamp(cls, value):
+        if isinstance(value, datetime):
+            return value
+        try:
+            return datetime.fromisoformat(value)
+        except (TypeError, ValueError):
+            raise ValueError(
+                "Invalid timestamp format. Expected ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)."
+            )
+
+
+class AgentDataMessage(BaseModel):
+    accelerometer: AccelerometerData
+    gps: GpsData
+    aq: AqData
+    timestamp: datetime
+    user_id: int
 
     @classmethod
     @field_validator("timestamp", mode="before")
@@ -101,7 +170,28 @@ class AgentData(BaseModel):
 
 class ProcessedAgentData(BaseModel):
     road_state: str
+    air_quality: str
     agent_data: AgentData
+
+
+class TrafficLightData(BaseModel):
+    traffic_light_id: int
+    cars_waiting: int
+    latitude: float
+    longitude: float
+    timestamp: datetime
+
+    @classmethod
+    @field_validator("timestamp", mode="before")
+    def check_timestamp(cls, value):
+        if isinstance(value, datetime):
+            return value
+        try:
+            return datetime.fromisoformat(value)
+        except (TypeError, ValueError):
+            raise ValueError(
+                "Invalid timestamp format. Expected ISO 8601 format (YYYY-MM-DDTHH:MM:SSZ)."
+            )
 
 
 # WebSocket subscriptions
@@ -146,7 +236,73 @@ async def send_data_to_subscribers(user_id: int, data):
     mqClient.publish("map_view_topic", json.dumps(data))
 
 
+async def send_traffic_light_to_subscribers(data):
+    mqClient.publish("traffic_light_view_topic", json.dumps(data))
 
+
+# MQTT ingest for raw agent data
+MQTT_BROKER_HOST = os.environ.get("MQTT_BROKER_HOST", "localhost")
+MQTT_BROKER_PORT = int(os.environ.get("MQTT_BROKER_PORT", "1883"))
+MQTT_TOPIC = os.environ.get("MQTT_TOPIC", "agent_data_topic")
+
+
+def _save_agent_data_from_mqtt(agent_data: AgentDataMessage) -> None:
+    value = {
+        "x": agent_data.accelerometer.x,
+        "y": agent_data.accelerometer.y,
+        "z": agent_data.accelerometer.z,
+        "latitude": agent_data.gps.latitude,
+        "longitude": agent_data.gps.longitude,
+        "co2_level": agent_data.aq.co2_level,
+        "temperature": agent_data.aq.temperature,
+        "pm2_5": agent_data.aq.pm2_5,
+        "pm10": agent_data.aq.pm10,
+        "timestamp": agent_data.timestamp,
+        "user_id": agent_data.user_id,
+    }
+    query = raw_agent_data.insert().values([value])
+    with engine.begin() as conn:
+        conn.execute(query)
+
+
+def _start_agent_mqtt_listener():
+    client = mqtt_client.Client()
+
+    def on_connect(inner_client, userdata, flags, rc):
+        if rc == 0:
+            logging.info("Connected to MQTT broker for ingest")
+            inner_client.subscribe(MQTT_TOPIC)
+        else:
+            logging.info("Failed to connect to MQTT broker for ingest: %s", rc)
+
+    def on_message(inner_client, userdata, msg):
+        try:
+            payload = msg.payload.decode("utf-8")
+            agent_data = AgentDataMessage.model_validate_json(payload, strict=True)
+            _save_agent_data_from_mqtt(agent_data)
+        except Exception as exc:
+            logging.info("MQTT ingest error: %s", exc)
+
+    client.on_connect = on_connect
+    client.on_message = on_message
+    client.connect(MQTT_BROKER_HOST, MQTT_BROKER_PORT)
+    client.loop_start()
+    return client
+
+
+agent_mqtt_client = None
+
+
+@app.on_event("startup")
+def _startup():
+    global agent_mqtt_client
+    agent_mqtt_client = _start_agent_mqtt_listener()
+
+
+@app.on_event("shutdown")
+def _shutdown():
+    if agent_mqtt_client is not None:
+        agent_mqtt_client.loop_stop()
 
 
 # FastAPI CRUDL endpoints
@@ -158,6 +314,7 @@ async def create_processed_agent_data(data: List[ProcessedAgentData]):
     for item in data:
         value = {
             "road_state": item.road_state,
+            "air_quality": item.air_quality,
             "x": item.agent_data.accelerometer.x,
             "y": item.agent_data.accelerometer.y,
             "z": item.agent_data.accelerometer.z,
@@ -206,6 +363,7 @@ def update_processed_agent_data(processed_agent_data_id: int, data: ProcessedAge
         processed_agent_data.c.id == processed_agent_data_id)
     .values(
         road_state=data.road_state,
+        air_quality=data.air_quality,
         x=data.agent_data.accelerometer.x,
         y=data.agent_data.accelerometer.y,
         z=data.agent_data.accelerometer.z,
@@ -232,6 +390,24 @@ def delete_processed_agent_data(processed_agent_data_id: int):
         if result.rowcount == 0:
             raise HTTPException(status_code=404, detail="Data not found")
     return processed_agent_data_to_be_removed
+
+
+@app.post("/traffic_light/")
+async def create_traffic_light_data(data: TrafficLightData):
+    value = {
+        "traffic_light_id": data.traffic_light_id,
+        "cars_waiting": data.cars_waiting,
+        "latitude": data.latitude,
+        "longitude": data.longitude,
+        "timestamp": data.timestamp,
+    }
+    query = traffic_light_data.insert().values([value])
+    with engine.begin() as conn:
+        conn.execute(query)
+    await send_traffic_light_to_subscribers(
+        [{**value, "timestamp": value["timestamp"].isoformat()}]
+    )
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":

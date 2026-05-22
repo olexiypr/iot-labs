@@ -5,8 +5,9 @@ import time
 from typing import List
 import requests
 
-from hub.app.entities.processed_agent_data import ProcessedAgentData
-from hub.app.interfaces.store_gateway import StoreGateway
+from ..entities.processed_agent_data import ProcessedAgentData
+from ..entities.traffic_light import TrafficLightData
+from ..interfaces.store_gateway import StoreGateway
 
 
 class StoreApiAdapter(StoreGateway):
@@ -30,6 +31,18 @@ class StoreApiAdapter(StoreGateway):
                     return True
                 else:
                     return False
+        except Exception as e:
+            logging.info(f"Error occured {e}")
+            return False
+
+    def save_traffic_light_data(self, traffic_light_data: TrafficLightData) -> bool:
+        try:
+            payload = traffic_light_data.model_dump()
+            payload["timestamp"] = traffic_light_data.timestamp.isoformat()
+            response = requests.post("http://127.0.0.1:8000/traffic_light/", json=payload)
+            if response.status_code == 200 or response.ok:
+                return True
+            return False
         except Exception as e:
             logging.info(f"Error occured {e}")
             return False

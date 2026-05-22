@@ -2,13 +2,15 @@ from dataclasses import dataclass
 
 from datetime import datetime
 
-from agent.src.domain.accelerometer import Accelerometer
-from agent.src.domain.gps import Gps
+from .accelerometer import Accelerometer
+from .gps import Gps
+from .aq import Aq
 
 
 @dataclass
 class AggregatedData:
     accelerometer: Accelerometer
     gps: Gps
+    aq: Aq
     timestamp: datetime
     user_id: int

@@ -13,9 +13,17 @@ class GpsData(BaseModel):
     longitude: float
 
 
+class AqData(BaseModel):
+    co2_level: int
+    temperature: float
+    pm2_5: int
+    pm10: int
+
+
 class AgentData(BaseModel):
     accelerometer: AccelerometerData
     gps: GpsData
+    aq: AqData
     timestamp: datetime
 
     @classmethod

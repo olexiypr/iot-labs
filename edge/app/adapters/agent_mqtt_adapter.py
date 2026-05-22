@@ -1,10 +1,13 @@
 import logging
+import os
 import paho.mqtt.client as mqtt
+import requests
 
-from edge.app.entities.agent_data import AgentData
-from edge.app.interfaces.agent_gateway import AgentGateway
-from edge.app.interfaces.hub_gateway import HubGateway
-from edge.app.usecases.data_processing import process_agent_data
+from ..entities.agent_data import AgentData
+from ..entities.processed_agent_data import ProcessedAgentData
+from ..interfaces.agent_gateway import AgentGateway
+from ..interfaces.hub_gateway import HubGateway
+from ..usecases.data_processing import process_agent_data
 
 
 class AgentMQTTAdapter(AgentGateway):
@@ -24,6 +27,11 @@ class AgentMQTTAdapter(AgentGateway):
         self.client = mqtt.Client()
         # Hub
         self.hub_gateway = hub_gateway
+        # Grafana
+        self.grafana_url = os.environ.get("GRAFANA_URL", "http://localhost:3000")
+        self.grafana_user = os.environ.get("GRAFANA_USER") or "admin"
+        self.grafana_password = os.environ.get("GRAFANA_PASSWORD") or "admin"
+        self.grafana_api_token = os.environ.get("GRAFANA_API_TOKEN")
 
     def on_connect(self, client, userdata, flags, rc):
         if rc == 0:

@@ -3,15 +3,17 @@ import logging
 import requests as requests
 from paho.mqtt import client as mqtt_client
 
-from edge.app.entities.processed_agent_data import ProcessedAgentData
-from edge.app.interfaces.hub_gateway import HubGateway
+from ..entities.processed_agent_data import ProcessedAgentData
+from ..entities.traffic_light import TrafficLightData
+from ..interfaces.hub_gateway import HubGateway
 
 
 class HubMqttAdapter(HubGateway):
-    def __init__(self, broker, port, topic):
+    def __init__(self, broker, port, topic, traffic_light_topic):
         self.broker = broker
         self.port = port
         self.topic = topic
+        self.traffic_light_topic = traffic_light_topic
         self.mqtt_client = self._connect_mqtt(broker, port)
 
     def save_data(self, processed_data: ProcessedAgentData):
@@ -30,6 +32,15 @@ class HubMqttAdapter(HubGateway):
         else:
             print(f"Failed to send message to topic {self.topic}")
             return False
+
+    def save_traffic_light_data(self, traffic_light_data: TrafficLightData) -> bool:
+        msg = traffic_light_data.model_dump_json()
+        result = self.mqtt_client.publish(self.traffic_light_topic, msg)
+        status = result[0]
+        if status == 0:
+            return True
+        print(f"Failed to send message to topic {self.traffic_light_topic}")
+        return False
 
     @staticmethod
     def _connect_mqtt(broker, port):

@@ -1,14 +1,17 @@
 import logging
 from app.adapters.agent_mqtt_adapter import AgentMQTTAdapter
 from app.adapters.hub_mqtt_adapter import HubMqttAdapter
+from app.adapters.traffic_light_mqtt_adapter import TrafficLightMQTTAdapter
 from config import (
     MQTT_BROKER_HOST,
     MQTT_BROKER_PORT,
     MQTT_TOPIC,
+    TRAFFIC_LIGHT_MQTT_TOPIC,
     HUB_URL,
     HUB_MQTT_BROKER_HOST,
     HUB_MQTT_BROKER_PORT,
     HUB_MQTT_TOPIC,
+    HUB_TRAFFIC_LIGHT_MQTT_TOPIC,
 )
 
 if __name__ == "__main__":
@@ -29,6 +32,7 @@ if __name__ == "__main__":
         broker=HUB_MQTT_BROKER_HOST,
         port=HUB_MQTT_BROKER_PORT,
         topic=HUB_MQTT_TOPIC,
+        traffic_light_topic=HUB_TRAFFIC_LIGHT_MQTT_TOPIC,
     )
     # Create an instance of the AgentMQTTAdapter using the configuration
     agent_adapter = AgentMQTTAdapter(
@@ -37,14 +41,23 @@ if __name__ == "__main__":
         topic=MQTT_TOPIC,
         hub_gateway=hub_adapter,
     )
+    traffic_light_adapter = TrafficLightMQTTAdapter(
+        broker_host=MQTT_BROKER_HOST,
+        broker_port=MQTT_BROKER_PORT,
+        topic=TRAFFIC_LIGHT_MQTT_TOPIC,
+        hub_gateway=hub_adapter,
+    )
     try:
         # Connect to the MQTT broker and start listening for messages
         agent_adapter.connect()
         agent_adapter.start()
+        traffic_light_adapter.connect()
+        traffic_light_adapter.start()
         # Keep the system running indefinitely (you can add other logic as needed)
         while True:
             pass
     except KeyboardInterrupt:
         # Stop the MQTT adapter and exit gracefully if interrupted by the user
         agent_adapter.stop()
+        traffic_light_adapter.stop()
         logging.info("System stopped.")

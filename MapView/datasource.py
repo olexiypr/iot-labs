@@ -18,6 +18,10 @@ class ProcessedAgentData(BaseModel):
     z: float
     latitude: float
     longitude: float
+    co2_level: int
+    temperature: float
+    pm2_5: int
+    pm10: int
     timestamp: datetime
 
     @classmethod

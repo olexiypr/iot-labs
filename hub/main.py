@@ -7,6 +7,7 @@ import paho.mqtt.client as mqtt
 
 from app.adapters.store_api_adapter import StoreApiAdapter
 from app.entities.processed_agent_data import ProcessedAgentData
+from app.entities.traffic_light import TrafficLightData
 from config import (
     STORE_API_BASE_URL,
     REDIS_HOST,
@@ -15,6 +16,7 @@ from config import (
     MQTT_TOPIC,
     MQTT_BROKER_HOST,
     MQTT_BROKER_PORT,
+    TRAFFIC_LIGHT_MQTT_TOPIC,
 )
 
 # Configure logging settings
@@ -59,6 +61,7 @@ def on_connect(client, userdata, flags, rc):
     if rc == 0:
         logging.info("Connected to MQTT broker")
         client.subscribe(MQTT_TOPIC)
+        client.subscribe(TRAFFIC_LIGHT_MQTT_TOPIC)
     else:
         logging.info(f"Failed to connect to MQTT broker with code: {rc}")
 
@@ -66,6 +69,10 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     try:
         payload: str = msg.payload.decode("utf-8")
+        if msg.topic == TRAFFIC_LIGHT_MQTT_TOPIC:
+            traffic_light_data = TrafficLightData.model_validate_json(payload, strict=True)
+            store_adapter.save_traffic_light_data(traffic_light_data)
+            return {"status": "ok"}
         # Create ProcessedAgentData instance with the received data
         processed_agent_data = ProcessedAgentData.model_validate_json(
             payload, strict=True
